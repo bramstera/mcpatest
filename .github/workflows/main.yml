@@ -1,0 +1,72 @@
+name: Build Paper
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Clone Paper
+        run: git clone --depth 1 https://github.com/PaperMC/Paper.git paper
+
+      - name: Apply Paper patches
+        working-directory: paper
+        run: ./gradlew applyPatches
+
+      - name: Add WsProxyServer
+        run: cp WsProxyServer.java paper/paper-server/src/minecraft/java/net/minecraft/server/network/
+
+      - name: Modify DedicatedServer.java
+        run: |
+          FILE="paper/paper-server/src/minecraft/java/net/minecraft/server/dedicated/DedicatedServer.java"
+          # 在 initializeKeyPair() 前插入 WsProxy 启动代码
+          sed -i '/this.initializeKeyPair();/i\        // WsProxy\n        int wsProxyPort = this.getPort();\n        int mcInternalPort = wsProxyPort + 1;\n        net.minecraft.server.network.WsProxyServer.start(wsProxyPort);\n        bindAddress = new java.net.InetSocketAddress(inetAddress, mcInternalPort);' "$FILE"
+
+      - name: Build Paper
+        working-directory: paper
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: ./gradlew createMojmapPaperclipJar
+
+      - name: Remove "Applying patches" message
+        run: |
+          cd paper/paper-server/build/libs
+          JAR=$(ls paper-paperclip-*.jar | head -1)
+          mkdir -p temp && cd temp
+          unzip -q ../$JAR
+          # 替换字符串 (用空格填充保持字节码长度)
+          sed -i 's/Applying patches/                 /g' io/papermc/paperclip/PatchEntry.class
+          rm ../$JAR
+          zip -r -q ../$JAR .
+          cd .. && rm -rf temp
+
+      - name: Rename JAR
+        run: |
+          cd paper/paper-server/build/libs
+          mv paper-paperclip-*.jar paper-ws-proxy.jar
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-ws-proxy
+          path: paper/paper-server/build/libs/paper-ws-proxy.jar
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: paper/paper-server/build/libs/paper-ws-proxy.jar
