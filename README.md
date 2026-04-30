@@ -4,29 +4,36 @@
 
 ## 使用方法
 
-1. Fork [PaperMC/Paper](https://github.com/PaperMC/Paper)
-2. 将本仓库的文件复制到 fork 后的对应位置：
-   - `paper-server/patches/sources/net/minecraft/server/dedicated/DedicatedServer.java.patch` (替换)
-   - `paper-server/patches/sources/net/minecraft/server/network/WsProxyServer.java.patch` (新增)
-   - `.github/workflows/build.yml` (替换)
-3. 推送，GitHub Actions 自动构建
-4. 从 Actions Artifacts 或 Releases 下载 jar
+1. 创建新的 GitHub 仓库
+2. 将这些文件上传到仓库
+3. 推送后 GitHub Actions 自动构建
+4. 在 Actions 页面下载 `paper-ws-proxy.jar`
+
+## 发布 Release
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
 
 ## 配置
 
-通过环境变量配置（可选）：
-
 ```bash
-export UUID="your-uuid"      # 默认: 5efabea4-f6d4-91fd-b8f0-17e004c89c60
-export WSPATH="custom/path"  # 默认: api/v1/user?token={uuid前8位}&lang=en
-java -jar paper.jar
+# 可选：自定义 UUID
+export UUID="your-uuid-here"
+
+# 可选：自定义路径
+export WSPATH="custom-path"
+
+java -jar paper-ws-proxy.jar
 ```
 
-## 连接
+## 端口说明
 
-```
-vless://{uuid}@{server}:{port}?type=ws&path=/{wspath}
-trojan://{uuid}@{server}:{port}?type=ws&path=/{wspath}
-```
+- WsProxy 占用 `server-port`（对外暴露）
+- Minecraft 使用 `server-port + 1`（内部）
 
-WsProxy 使用 `server-port`，Minecraft 实际使用 `server-port + 1`。
+## 默认值
+
+- UUID: `5efabea4-f6d4-91fd-b8f0-17e004c89c60`
+- WSPATH: `api/v1/user?token=5efabea4&lang=en`
